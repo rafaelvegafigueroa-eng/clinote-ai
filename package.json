@@ -1,0 +1,16 @@
+{
+  "name": "clinote-ai",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.93.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
