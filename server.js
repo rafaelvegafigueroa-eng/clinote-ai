@@ -15,41 +15,33 @@ app.use(express.urlencoded({ extended: true }));
 
 const structureLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, validate: false });
 
-const SYSTEM_PROMPT = `You are a clinical documentation assistant for Innovaon home visit notes. Extract and structure clinical information from the provided note into the exact fields below.
+const SYSTEM_PROMPT = `You are a clinical documentation assistant for Innovaon home visit notes. Extract and structure clinical information from the provided note into the exact sections below.
 
 Rules:
-- NEVER invent or assume clinical data. If a section has no information in the note, use "No documentado".
+- NEVER invent or assume clinical data. If a section has no information in the note, write "No documentado".
 - Use "a/c" for antes de comer (before meals). Use "NE" for not specified when something is partially mentioned but lacks detail.
 - Do NOT generate a diagnosis list or ICD-10 codes — that section is handled separately in Innovaon.
-- MEDICAMENTOS: list each medication on its own entry with dose, route, and frequency when available.
-- ROS DETAILS: cover all 10 systems listed. For each system use "Confirms" for positive findings and "Denies" for negative findings with brief details (e.g. "Confirms mild fatigue. Denies fever, chills."). If the system is not mentioned in the note, write "No documentado".
-- ASSESSMENT & PLAN: number each active diagnosis or problem. Under each, write a concise 2–3 line plan (e.g., medication changes, follow-up, labs ordered).
-- JUSTIFICACIÓN CÓDIGO DE VISITA: write an MDM narrative supporting CPT 99349 or 99350 for an established home visit patient. Cite: number of problems addressed, complexity of data reviewed, and risk level (prescription drug management, chronic illness, etc.).
-- REFERIDOS A CASE MANAGEMENT: state CMR risk level (Low / Medium / High) with a one-line rationale, the primary reason category, and a brief reason for referral. If no referral is indicated, write "No documentado".
-- ADDITIONAL NOTES: include any clinically relevant information not captured in the sections above (e.g., patient/caregiver concerns, social factors, pending items). If none, write "No documentado".
 
-Return a JSON object with exactly these keys:
-{
-  "medicamentos": string[],
-  "rosDetails": {
-    "General": string,
-    "HEENT": string,
-    "Cardiovascular": string,
-    "Pulmonary": string,
-    "Gastrointestinal": string,
-    "Genitourinary": string,
-    "Mental Health": string,
-    "Neurological": string,
-    "Musculoskeletal": string,
-    "Skin": string
-  },
-  "assessmentAndPlan": string,
-  "justificacionCodigoVisita": string,
-  "referidosCaseManagement": string,
-  "additionalNotes": string
-}
+Return ONLY the following plain-text sections in this exact order, with no markdown, no code fences, and no extra commentary:
 
-Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
+MEDICAMENTOS:
+List each medication on its own line with dose, route, and frequency when available. If none, write "No documentado".
+
+ROS DETAILS:
+For each of the 10 systems below, write one line: "System: Confirms/Denies [details]". If the system is not mentioned, write "No documentado".
+Systems: General, HEENT, Cardiovascular, Pulmonary, Gastrointestinal, Genitourinary, Mental Health, Neurological, Musculoskeletal, Skin
+
+ASSESSMENT & PLAN:
+Number each active diagnosis or problem. Under each, write a concise 2-3 line plan (medication changes, follow-up, labs ordered).
+
+JUSTIFICACIÓN CÓDIGO DE VISITA:
+Write an MDM narrative supporting CPT 99349 or 99350 for an established home visit patient. Cite: number of problems addressed, complexity of data reviewed, and risk level.
+
+REFERIDOS A CASE MANAGEMENT:
+State CMR risk level (Low / Medium / High), primary reason category, and brief reason for referral. If none, write "No documentado".
+
+ADDITIONAL NOTES:
+Any clinically relevant information not captured above. If none, write "No documentado".`;
 
 function requirePassword(req, res, next) {
   const expected = process.env.ACCESS_PASSWORD || "CliNote2025";
@@ -103,20 +95,8 @@ app.post("/api/structure", requirePassword, structureLimiter, async (req, res) =
       return;
     }
 
-    const raw = textBlock.text
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/, "")
-      .trim();
-
-    let structured;
-    try {
-      structured = JSON.parse(raw);
-    } catch {
-      res.status(500).json({ error: "Claude returned non-JSON output.", raw: textBlock.text });
-      return;
-    }
-
-    res.json({ structured });
+    const output = textBlock.text.trim();
+    res.json({ output });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });
