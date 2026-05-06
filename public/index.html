@@ -523,7 +523,7 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
   }
 
   function noData(val) {
-    return !val || (Array.isArray(val) && val.length === 0);
+    return !val || val === "No documentado" || !Array.isArray(val) || val.length === 0;
   }
 
   const ROS_SYSTEMS = ["General","HEENT","Cardiovascular","Pulmonary","Gastrointestinal","Genitourinary","Mental Health","Neurological","Musculoskeletal","Skin"];
