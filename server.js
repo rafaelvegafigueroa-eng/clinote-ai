@@ -15,8 +15,6 @@ app.use(express.urlencoded({ extended: true }));
 
 const structureLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, validate: false });
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const SYSTEM_PROMPT = `You are a clinical documentation assistant for Innovaon home visit notes. Extract and structure clinical information from the provided note into the exact fields below.
 
 Rules:
@@ -91,6 +89,7 @@ app.post("/api/structure", requirePassword, structureLimiter, async (req, res) =
   }
 
   try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const message = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 4096,
@@ -132,4 +131,14 @@ app.get("/{*path}", (_req, res) => {
 
 app.listen(Number(PORT), "0.0.0.0", () => {
   console.log(`Server listening on port ${PORT}`);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+  process.exit(1);
 });
