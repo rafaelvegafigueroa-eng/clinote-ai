@@ -223,10 +223,13 @@
     }
     .dx-table .icd { font-family: monospace; font-size: 0.82rem; color: #475569; white-space: nowrap; }
 
-    /* Exam subsections */
+    /* Exam / ROS rows */
     .exam-row { display: flex; gap: 8px; margin-bottom: 4px; font-size: 0.9rem; }
-    .exam-system { font-weight: 600; color: #4a5568; min-width: 120px; flex-shrink: 0; }
+    .exam-system { font-weight: 600; color: #4a5568; min-width: 130px; flex-shrink: 0; }
     .exam-finding { color: #2d3748; }
+
+    /* Pre-wrap for numbered A&P */
+    .pre-wrap { white-space: pre-wrap; font-family: inherit; font-size: 0.92rem; line-height: 1.7; color: #2d3748; margin: 0; }
 
     /* Password gate */
     #gate {
@@ -523,24 +526,14 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     return !val || (Array.isArray(val) && val.length === 0);
   }
 
+  const ROS_SYSTEMS = ["General","HEENT","Cardiovascular","Pulmonary","Gastrointestinal","Genitourinary","Mental Health","Neurological","Musculoskeletal","Skin"];
+
   function renderStructured(s) {
     if (!s || typeof s !== "object") {
       return `<div class="error-msg">Unexpected response format.</div>`;
     }
 
     let html = "";
-
-    // DIAGNÓSTICOS (ICD-10)
-    html += section("DIAGNÓSTICOS (ICD-10)", () => {
-      const dx = s.diagnosticos;
-      if (noData(dx)) return noDoc();
-      return `<table class="dx-table">
-        <thead><tr><th>Description</th><th>ICD-10</th></tr></thead>
-        <tbody>${dx.map(d =>
-          `<tr><td>${esc(d.description || "NE")}</td><td class="icd">${esc(d.icd10 || "NE")}</td></tr>`
-        ).join("")}</tbody>
-      </table>`;
-    });
 
     // MEDICAMENTOS
     html += section("MEDICAMENTOS", () => {
@@ -549,34 +542,21 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
       return `<ul>${meds.map(m => `<li>${esc(m)}</li>`).join("")}</ul>`;
     });
 
-    // REVISIÓN DE SISTEMAS (ROS)
-    html += section("REVISIÓN DE SISTEMAS (ROS)", () => {
-      const ros = s.revisionDeSistemas;
-      if (!ros || ros === "No documentado") return noDoc();
-      return esc(ros);
-    });
-
-    // EXAMEN FÍSICO
-    html += section("EXAMEN FÍSICO", () => {
-      const ef = s.examenFisico;
-      if (!ef || typeof ef !== "object" || Object.keys(ef).length === 0) return noDoc();
-      return Object.entries(ef).map(([sys, finding]) =>
-        `<div class="exam-row"><span class="exam-system">${esc(sys)}:</span><span class="exam-finding">${esc(String(finding))}</span></div>`
-      ).join("");
-    });
-
-    // SCREENINGS
-    html += section("SCREENINGS", () => {
-      const sc = s.screenings;
-      if (noData(sc)) return noDoc();
-      return `<ul>${sc.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    // ROS DETAILS
+    html += section("ROS DETAILS", () => {
+      const ros = s.rosDetails;
+      if (!ros || typeof ros !== "object") return noDoc();
+      return ROS_SYSTEMS.map(sys => {
+        const val = ros[sys] || "No documentado";
+        return `<div class="exam-row"><span class="exam-system">${esc(sys)}:</span><span class="exam-finding">${esc(val)}</span></div>`;
+      }).join("");
     });
 
     // ASSESSMENT & PLAN
     html += section("ASSESSMENT & PLAN", () => {
       const ap = s.assessmentAndPlan;
       if (!ap || ap === "No documentado") return noDoc();
-      return esc(ap);
+      return `<pre class="pre-wrap">${esc(ap)}</pre>`;
     });
 
     // JUSTIFICACIÓN CÓDIGO DE VISITA
@@ -589,8 +569,15 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     // REFERIDOS A CASE MANAGEMENT
     html += section("REFERIDOS A CASE MANAGEMENT", () => {
       const ref = s.referidosCaseManagement;
-      if (noData(ref)) return noDoc();
-      return `<ul>${ref.map(r => `<li>${esc(r)}</li>`).join("")}</ul>`;
+      if (!ref || ref === "No documentado") return noDoc();
+      return esc(ref);
+    });
+
+    // ADDITIONAL NOTES
+    html += section("ADDITIONAL NOTES", () => {
+      const an = s.additionalNotes;
+      if (!an || an === "No documentado") return noDoc();
+      return esc(an);
     });
 
     return html;
@@ -607,7 +594,7 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     return `<span class="no-data">No documentado</span>`;
   }
 
-  // Plain-text version for clipboard (EHR-ready format)
+  // Plain-text version for clipboard (Innovaon EHR-ready format)
   function buildPlainText(s) {
     if (!s) return "";
     const lines = [];
@@ -617,65 +604,50 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-    lines.push("NOTA CLÍNICA ESTRUCTURADA");
+    lines.push("NOTA CLÍNICA ESTRUCTURADA — Innovaon");
     lines.push(`Fecha: ${dateStr}  ${timeStr}`);
     lines.push(DIV);
     lines.push("");
 
-    // DIAGNÓSTICOS (ICD-10)
-    lines.push("DIAGNÓSTICOS (ICD-10)");
-    const dx = s.diagnosticos;
-    if (!noData(dx)) {
-      dx.forEach((d, i) => lines.push(`  ${i + 1}. ${d.description || "NE"}  [${d.icd10 || "NE"}]`));
-    } else {
-      lines.push("  No documentado");
-    }
-    lines.push("");
-
     // MEDICAMENTOS
-    lines.push("MEDICAMENTOS");
+    lines.push("MEDICAMENTOS:");
     lines.push(noData(s.medicamentos)
       ? "  No documentado"
       : s.medicamentos.map(m => `  • ${m}`).join("\n"));
     lines.push("");
 
-    // REVISIÓN DE SISTEMAS
-    lines.push("REVISIÓN DE SISTEMAS (ROS)");
-    lines.push(`  ${s.revisionDeSistemas || "No documentado"}`);
-    lines.push("");
-
-    // EXAMEN FÍSICO
-    lines.push("EXAMEN FÍSICO");
-    const ef = s.examenFisico;
-    if (ef && typeof ef === "object" && Object.keys(ef).length > 0) {
-      Object.entries(ef).forEach(([sys, f]) => lines.push(`  ${sys}: ${f}`));
+    // ROS DETAILS
+    lines.push("ROS DETAILS:");
+    const ros = s.rosDetails;
+    if (ros && typeof ros === "object") {
+      ROS_SYSTEMS.forEach(sys => {
+        lines.push(`  ${sys}: ${ros[sys] || "No documentado"}`);
+      });
     } else {
       lines.push("  No documentado");
     }
     lines.push("");
 
-    // SCREENINGS
-    lines.push("SCREENINGS");
-    lines.push(noData(s.screenings)
-      ? "  No documentado"
-      : s.screenings.map(x => `  • ${x}`).join("\n"));
-    lines.push("");
-
     // ASSESSMENT & PLAN
-    lines.push("ASSESSMENT & PLAN");
-    lines.push(`  ${s.assessmentAndPlan || "No documentado"}`);
+    lines.push("ASSESSMENT & PLAN:");
+    lines.push(s.assessmentAndPlan
+      ? s.assessmentAndPlan.split("\n").map(l => `  ${l}`).join("\n")
+      : "  No documentado");
     lines.push("");
 
     // JUSTIFICACIÓN CÓDIGO DE VISITA
-    lines.push("JUSTIFICACIÓN CÓDIGO DE VISITA");
+    lines.push("JUSTIFICACIÓN CÓDIGO DE VISITA:");
     lines.push(`  ${s.justificacionCodigoVisita || "No documentado"}`);
     lines.push("");
 
     // REFERIDOS A CASE MANAGEMENT
-    lines.push("REFERIDOS A CASE MANAGEMENT");
-    lines.push(noData(s.referidosCaseManagement)
-      ? "  No documentado"
-      : s.referidosCaseManagement.map(r => `  • ${r}`).join("\n"));
+    lines.push("REFERIDOS A CASE MANAGEMENT:");
+    lines.push(`  ${s.referidosCaseManagement || "No documentado"}`);
+    lines.push("");
+
+    // ADDITIONAL NOTES
+    lines.push("ADDITIONAL NOTES:");
+    lines.push(`  ${s.additionalNotes || "No documentado"}`);
 
     return lines.join("\n").trim();
   }
