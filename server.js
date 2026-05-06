@@ -13,14 +13,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const structureLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 20,
-  standardHeaders: "draft-8",
-  legacyHeaders: false,
-  trustProxy: true,
-  message: { error: "Too many requests. Please wait a few minutes and try again." },
-});
+const structureLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, validate: false });
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
