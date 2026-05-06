@@ -481,7 +481,7 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     spinner.style.display = "block";
     btnText.textContent = "Processing…";
     output.innerHTML = "";
-    copyBtn.style.display = "none";
+    outputActions.style.display = "none";
 
     try {
       const res = await fetch("/api/structure", {
