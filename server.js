@@ -18,6 +18,7 @@ const structureLimiter = rateLimit({
   limit: 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
+  trustProxy: true,
   message: { error: "Too many requests. Please wait a few minutes and try again." },
 });
 
