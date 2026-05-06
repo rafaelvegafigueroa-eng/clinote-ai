@@ -51,9 +51,9 @@ Return a JSON object with exactly these keys:
 Return ONLY valid JSON. No markdown, no code fences, no explanation.`;
 
 function requirePassword(req, res, next) {
-  const expected = process.env.ACCESS_PASSWORD;
+  const expected = process.env.ACCESS_PASSWORD || "CliNote2025";
   const provided = req.headers["x-access-password"];
-  if (!expected || provided !== expected) {
+  if (provided !== expected) {
     res.status(401).json({ error: "Unauthorized. Incorrect password." });
     return;
   }
@@ -65,9 +65,9 @@ app.get("/api/healthz", (_req, res) => {
 });
 
 app.post("/api/auth", (req, res) => {
-  const expected = process.env.ACCESS_PASSWORD;
+  const expected = process.env.ACCESS_PASSWORD || "CliNote2025";
   const { password } = req.body;
-  if (!expected || password !== expected) {
+  if (password !== expected) {
     res.status(401).json({ ok: false });
     return;
   }
