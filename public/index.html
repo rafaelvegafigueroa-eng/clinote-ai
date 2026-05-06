@@ -123,19 +123,29 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Copy button */
-    #copyBtn {
-      background: #f1f5f9;
-      color: #475569;
-      padding: 6px 14px;
-      font-size: 0.78rem;
+    /* Output bottom actions */
+    .output-actions {
+      padding: 12px 18px;
+      border-top: 1px solid #e2e8f0;
       display: none;
-      align-items: center;
-      gap: 6px;
-      border-radius: 6px;
     }
-    #copyBtn:hover { background: #e2e8f0; }
-    #copyBtn.copied { background: #dcfce7; color: #15803d; }
+    #copyPlainBtn {
+      width: 100%;
+      background: #f8fafc;
+      color: #334155;
+      border: 1.5px solid #cbd5e1;
+      padding: 10px 18px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    #copyPlainBtn:hover { background: #f1f5f9; border-color: #94a3b8; }
+    #copyPlainBtn.copied { background: #dcfce7; border-color: #86efac; color: #15803d; }
 
     /* Output panel */
     #output {
@@ -351,15 +361,7 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
   </div>
 
   <div class="panel">
-    <div class="panel-header">
-      Structured Output
-      <button id="copyBtn">
-        <svg id="copyIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-        </svg>
-        <span id="copyLabel">Copy</span>
-      </button>
-    </div>
+    <div class="panel-header">Structured Output</div>
     <div id="output">
       <div class="placeholder">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -367,6 +369,14 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
         </svg>
         <p>Structured sections will appear here<br>once you submit a note.</p>
       </div>
+    </div>
+    <div class="output-actions" id="outputActions">
+      <button id="copyPlainBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span id="copyPlainLabel">Copy as Plain Text</span>
+      </button>
     </div>
   </div>
 </main>
@@ -432,9 +442,10 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
   const clearBtn  = document.getElementById("clearBtn");
   const spinner   = document.getElementById("spinner");
   const btnText   = document.getElementById("btnText");
-  const output    = document.getElementById("output");
-  const copyBtn   = document.getElementById("copyBtn");
-  const copyLabel = document.getElementById("copyLabel");
+  const output        = document.getElementById("output");
+  const outputActions = document.getElementById("outputActions");
+  const copyPlainBtn  = document.getElementById("copyPlainBtn");
+  const copyPlainLabel = document.getElementById("copyPlainLabel");
 
   const PLACEHOLDER_HTML = `<div class="placeholder">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -447,17 +458,17 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     noteInput.value = "";
     noteInput.focus();
     output.innerHTML = PLACEHOLDER_HTML;
-    copyBtn.style.display = "none";
+    outputActions.style.display = "none";
   });
 
-  copyBtn.addEventListener("click", () => {
+  copyPlainBtn.addEventListener("click", () => {
     const text = buildPlainText(window.__lastStructured);
     navigator.clipboard.writeText(text).then(() => {
-      copyBtn.classList.add("copied");
-      copyLabel.textContent = "Copied!";
+      copyPlainBtn.classList.add("copied");
+      copyPlainLabel.textContent = "Copied!";
       setTimeout(() => {
-        copyBtn.classList.remove("copied");
-        copyLabel.textContent = "Copy";
+        copyPlainBtn.classList.remove("copied");
+        copyPlainLabel.textContent = "Copy as Plain Text";
       }, 2000);
     });
   });
@@ -491,7 +502,7 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
 
       window.__lastStructured = data.structured;
       output.innerHTML = renderStructured(data.structured);
-      copyBtn.style.display = "flex";
+      outputActions.style.display = "block";
     } catch (err) {
       output.innerHTML = `<div class="error-msg">Network error: ${esc(String(err))}</div>`;
     } finally {
@@ -596,52 +607,73 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     return `<span class="no-data">No documentado</span>`;
   }
 
-  // Plain-text version for clipboard
+  // Plain-text version for clipboard (EHR-ready format)
   function buildPlainText(s) {
     if (!s) return "";
     const lines = [];
+    const DIV = "─".repeat(48);
 
-    const add = (label, content) => {
-      lines.push(`${label}`);
-      lines.push(content);
-      lines.push("");
-    };
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-    // Diagnósticos
+    lines.push("NOTA CLÍNICA ESTRUCTURADA");
+    lines.push(`Fecha: ${dateStr}  ${timeStr}`);
+    lines.push(DIV);
+    lines.push("");
+
+    // DIAGNÓSTICOS (ICD-10)
+    lines.push("DIAGNÓSTICOS (ICD-10)");
     const dx = s.diagnosticos;
     if (!noData(dx)) {
-      lines.push("DIAGNÓSTICOS (ICD-10)");
-      dx.forEach(d => lines.push(`  ${d.description || "NE"} — ${d.icd10 || "NE"}`));
+      dx.forEach((d, i) => lines.push(`  ${i + 1}. ${d.description || "NE"}  [${d.icd10 || "NE"}]`));
     } else {
-      lines.push("DIAGNÓSTICOS (ICD-10)");
       lines.push("  No documentado");
     }
     lines.push("");
 
-    add("MEDICAMENTOS", noData(s.medicamentos)
+    // MEDICAMENTOS
+    lines.push("MEDICAMENTOS");
+    lines.push(noData(s.medicamentos)
       ? "  No documentado"
       : s.medicamentos.map(m => `  • ${m}`).join("\n"));
+    lines.push("");
 
-    add("REVISIÓN DE SISTEMAS (ROS)", `  ${s.revisionDeSistemas || "No documentado"}`);
+    // REVISIÓN DE SISTEMAS
+    lines.push("REVISIÓN DE SISTEMAS (ROS)");
+    lines.push(`  ${s.revisionDeSistemas || "No documentado"}`);
+    lines.push("");
 
+    // EXAMEN FÍSICO
+    lines.push("EXAMEN FÍSICO");
     const ef = s.examenFisico;
     if (ef && typeof ef === "object" && Object.keys(ef).length > 0) {
-      lines.push("EXAMEN FÍSICO");
       Object.entries(ef).forEach(([sys, f]) => lines.push(`  ${sys}: ${f}`));
     } else {
-      lines.push("EXAMEN FÍSICO");
       lines.push("  No documentado");
     }
     lines.push("");
 
-    add("SCREENINGS", noData(s.screenings)
+    // SCREENINGS
+    lines.push("SCREENINGS");
+    lines.push(noData(s.screenings)
       ? "  No documentado"
       : s.screenings.map(x => `  • ${x}`).join("\n"));
+    lines.push("");
 
-    add("ASSESSMENT & PLAN", `  ${s.assessmentAndPlan || "No documentado"}`);
-    add("JUSTIFICACIÓN CÓDIGO DE VISITA", `  ${s.justificacionCodigoVisita || "No documentado"}`);
+    // ASSESSMENT & PLAN
+    lines.push("ASSESSMENT & PLAN");
+    lines.push(`  ${s.assessmentAndPlan || "No documentado"}`);
+    lines.push("");
 
-    add("REFERIDOS A CASE MANAGEMENT", noData(s.referidosCaseManagement)
+    // JUSTIFICACIÓN CÓDIGO DE VISITA
+    lines.push("JUSTIFICACIÓN CÓDIGO DE VISITA");
+    lines.push(`  ${s.justificacionCodigoVisita || "No documentado"}`);
+    lines.push("");
+
+    // REFERIDOS A CASE MANAGEMENT
+    lines.push("REFERIDOS A CASE MANAGEMENT");
+    lines.push(noData(s.referidosCaseManagement)
       ? "  No documentado"
       : s.referidosCaseManagement.map(r => `  • ${r}`).join("\n"));
 
