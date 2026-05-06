@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical Note Structurer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6f9;
+      color: #1a202c;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #1a56db;
+      color: #fff;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header svg { flex-shrink: 0; }
+    header h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; }
+    header p { font-size: 0.8rem; opacity: 0.8; margin-top: 2px; }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      padding: 24px 32px;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 768px) {
+      main { grid-template-columns: 1fr; padding: 16px; }
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    textarea {
+      flex: 1;
+      border: none;
+      resize: none;
+      padding: 16px 18px;
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #1a202c;
+      font-family: inherit;
+      min-height: 420px;
+      outline: none;
+    }
+    textarea::placeholder { color: #a0aec0; }
+
+    .actions {
+      padding: 14px 18px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    button {
+      padding: 9px 20px;
+      border-radius: 7px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    #clearBtn {
+      background: #f1f5f9;
+      color: #475569;
+    }
+    #clearBtn:hover { background: #e2e8f0; }
+
+    #submitBtn {
+      background: #1a56db;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #submitBtn:hover:not(:disabled) { background: #1648c0; }
+    #submitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Copy button */
+    #copyBtn {
+      background: #f1f5f9;
+      color: #475569;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      border-radius: 6px;
+    }
+    #copyBtn:hover { background: #e2e8f0; }
+    #copyBtn.copied { background: #dcfce7; color: #15803d; }
+
+    /* Output panel */
+    #output {
+      flex: 1;
+      padding: 16px 18px;
+      overflow-y: auto;
+      min-height: 420px;
+    }
+
+    .placeholder {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #a0aec0;
+      gap: 10px;
+      text-align: center;
+    }
+    .placeholder svg { opacity: 0.35; }
+    .placeholder p { font-size: 0.9rem; }
+
+    .error-msg {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #b91c1c;
+      border-radius: 7px;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+    }
+
+    .section {
+      margin-bottom: 20px;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 16px;
+    }
+    .section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+    .section-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #1a56db;
+      margin-bottom: 8px;
+    }
+    .section-content {
+      font-size: 0.92rem;
+      line-height: 1.7;
+      color: #2d3748;
+    }
+    .section-content ul {
+      list-style: disc;
+      padding-left: 18px;
+    }
+    .section-content ul li { margin-bottom: 3px; }
+    .section-content .no-data { color: #94a3b8; font-style: italic; }
+
+    /* Diagnósticos table */
+    .dx-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .dx-table th {
+      text-align: left;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 4px 8px 6px 0;
+    }
+    .dx-table td {
+      padding: 5px 8px 5px 0;
+      border-bottom: 1px solid #f8fafc;
+      vertical-align: top;
+    }
+    .dx-table .icd { font-family: monospace; font-size: 0.82rem; color: #475569; white-space: nowrap; }
+
+    /* Exam subsections */
+    .exam-row { display: flex; gap: 8px; margin-bottom: 4px; font-size: 0.9rem; }
+    .exam-system { font-weight: 600; color: #4a5568; min-width: 120px; flex-shrink: 0; }
+    .exam-finding { color: #2d3748; }
+
+    /* Password gate */
+    #gate {
+      position: fixed; inset: 0;
+      background: #f4f6f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    #gate.hidden { display: none; }
+    .gate-card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .gate-icon {
+      background: #eff4ff;
+      border-radius: 50%;
+      width: 56px; height: 56px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .gate-card h2 { font-size: 1.15rem; font-weight: 700; color: #1a202c; text-align: center; }
+    .gate-card p { font-size: 0.88rem; color: #64748b; text-align: center; margin-top: -8px; }
+    .gate-input-wrap { width: 100%; position: relative; }
+    #pwdInput {
+      width: 100%;
+      padding: 11px 44px 11px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #pwdInput:focus { border-color: #1a56db; }
+    #pwdInput.error { border-color: #ef4444; }
+    #togglePwd {
+      position: absolute; right: 12px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none; padding: 0;
+      cursor: pointer; color: #94a3b8;
+    }
+    #gateError {
+      font-size: 0.82rem; color: #ef4444;
+      min-height: 18px;
+      align-self: flex-start;
+      margin-top: -12px;
+    }
+    #gateBtn {
+      width: 100%;
+      background: #1a56db;
+      color: #fff;
+      padding: 11px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    #gateBtn:hover:not(:disabled) { background: #1648c0; }
+    #gateBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+    #gateSpinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1a56db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </div>
+    <h2>Clinical Note Structurer</h2>
+    <p>Enter the access password to continue.</p>
+    <form id="gateForm" style="width:100%;display:contents;" onsubmit="return false;">
+      <div class="gate-input-wrap">
+        <input id="pwdInput" type="password" placeholder="Password" autocomplete="current-password" />
+        <button id="togglePwd" type="button" aria-label="Show password">
+          <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <div id="gateError"></div>
+      <button id="gateBtn" type="submit">
+        <span id="gateSpinner" class="spinner"></span>
+        Unlock
+      </button>
+    </form>
+  </div>
+</div>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 12h6M9 16h6M7 8h10M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
+  </svg>
+  <div>
+    <h1>Clinical Note Structurer</h1>
+    <p>Paste a clinical note and get structured output powered by Claude</p>
+  </div>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="panel-header">Clinical Note Input</div>
+    <textarea id="noteInput" placeholder="Paste or type your clinical note here...
+
+Example:
+Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypertension, type 2 diabetes. Medications: metformin 1000mg BID, lisinopril 10mg daily. Allergic to penicillin. BP 145/92, HR 88, afebrile. Lungs clear. Heart RRR. Assessment: stable angina. Plan: start aspirin 81mg, refer to cardiology."></textarea>
+    <div class="actions">
+      <button id="clearBtn">Clear</button>
+      <button id="submitBtn">
+        <span class="spinner" id="spinner"></span>
+        <span id="btnText">Structure Note</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      Structured Output
+      <button id="copyBtn">
+        <svg id="copyIcon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span id="copyLabel">Copy</span>
+      </button>
+    </div>
+    <div id="output">
+      <div class="placeholder">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>
+        </svg>
+        <p>Structured sections will appear here<br>once you submit a note.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  // --- Password gate ---
+  const gate       = document.getElementById("gate");
+  const pwdInput   = document.getElementById("pwdInput");
+  const gateBtn    = document.getElementById("gateBtn");
+  const gateError  = document.getElementById("gateError");
+  const gateSpinner = document.getElementById("gateSpinner");
+  const togglePwd  = document.getElementById("togglePwd");
+
+  let sessionPassword = sessionStorage.getItem("clinote_pwd") || "";
+
+  if (sessionPassword) {
+    gate.classList.add("hidden");
+  } else {
+    pwdInput.focus();
+  }
+
+  togglePwd.addEventListener("click", () => {
+    const isHidden = pwdInput.type === "password";
+    pwdInput.type = isHidden ? "text" : "password";
+  });
+
+  async function attemptUnlock() {
+    const pwd = pwdInput.value.trim();
+    if (!pwd) { pwdInput.classList.add("error"); return; }
+    pwdInput.classList.remove("error");
+    gateError.textContent = "";
+    gateBtn.disabled = true;
+    gateSpinner.style.display = "block";
+
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwd }),
+      });
+      if (res.ok) {
+        sessionPassword = pwd;
+        sessionStorage.setItem("clinote_pwd", pwd);
+        gate.classList.add("hidden");
+      } else {
+        pwdInput.classList.add("error");
+        gateError.textContent = "Incorrect password. Please try again.";
+        pwdInput.select();
+      }
+    } catch {
+      gateError.textContent = "Network error. Please try again.";
+    } finally {
+      gateBtn.disabled = false;
+      gateSpinner.style.display = "none";
+    }
+  }
+
+  document.getElementById("gateForm").addEventListener("submit", attemptUnlock);
+
+  // --- Main app ---
+  const noteInput = document.getElementById("noteInput");
+  const submitBtn = document.getElementById("submitBtn");
+  const clearBtn  = document.getElementById("clearBtn");
+  const spinner   = document.getElementById("spinner");
+  const btnText   = document.getElementById("btnText");
+  const output    = document.getElementById("output");
+  const copyBtn   = document.getElementById("copyBtn");
+  const copyLabel = document.getElementById("copyLabel");
+
+  const PLACEHOLDER_HTML = `<div class="placeholder">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>
+    </svg>
+    <p>Structured sections will appear here<br>once you submit a note.</p>
+  </div>`;
+
+  clearBtn.addEventListener("click", () => {
+    noteInput.value = "";
+    noteInput.focus();
+    output.innerHTML = PLACEHOLDER_HTML;
+    copyBtn.style.display = "none";
+  });
+
+  copyBtn.addEventListener("click", () => {
+    const text = buildPlainText(window.__lastStructured);
+    navigator.clipboard.writeText(text).then(() => {
+      copyBtn.classList.add("copied");
+      copyLabel.textContent = "Copied!";
+      setTimeout(() => {
+        copyBtn.classList.remove("copied");
+        copyLabel.textContent = "Copy";
+      }, 2000);
+    });
+  });
+
+  submitBtn.addEventListener("click", async () => {
+    const note = noteInput.value.trim();
+    if (!note) { noteInput.focus(); return; }
+
+    submitBtn.disabled = true;
+    spinner.style.display = "block";
+    btnText.textContent = "Processing…";
+    output.innerHTML = "";
+    copyBtn.style.display = "none";
+
+    try {
+      const res = await fetch("/api/structure", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-access-password": sessionPassword,
+        },
+        body: JSON.stringify({ note }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        output.innerHTML = `<div class="error-msg">Error: ${esc(data.error || "Unknown error")}</div>`;
+        return;
+      }
+
+      window.__lastStructured = data.structured;
+      output.innerHTML = renderStructured(data.structured);
+      copyBtn.style.display = "flex";
+    } catch (err) {
+      output.innerHTML = `<div class="error-msg">Network error: ${esc(String(err))}</div>`;
+    } finally {
+      submitBtn.disabled = false;
+      spinner.style.display = "none";
+      btnText.textContent = "Structure Note";
+    }
+  });
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;");
+  }
+
+  function noData(val) {
+    return !val || (Array.isArray(val) && val.length === 0);
+  }
+
+  function renderStructured(s) {
+    if (!s || typeof s !== "object") {
+      return `<div class="error-msg">Unexpected response format.</div>`;
+    }
+
+    let html = "";
+
+    // DIAGNÓSTICOS (ICD-10)
+    html += section("DIAGNÓSTICOS (ICD-10)", () => {
+      const dx = s.diagnosticos;
+      if (noData(dx)) return noDoc();
+      return `<table class="dx-table">
+        <thead><tr><th>Description</th><th>ICD-10</th></tr></thead>
+        <tbody>${dx.map(d =>
+          `<tr><td>${esc(d.description || "NE")}</td><td class="icd">${esc(d.icd10 || "NE")}</td></tr>`
+        ).join("")}</tbody>
+      </table>`;
+    });
+
+    // MEDICAMENTOS
+    html += section("MEDICAMENTOS", () => {
+      const meds = s.medicamentos;
+      if (noData(meds)) return noDoc();
+      return `<ul>${meds.map(m => `<li>${esc(m)}</li>`).join("")}</ul>`;
+    });
+
+    // REVISIÓN DE SISTEMAS (ROS)
+    html += section("REVISIÓN DE SISTEMAS (ROS)", () => {
+      const ros = s.revisionDeSistemas;
+      if (!ros || ros === "No documentado") return noDoc();
+      return esc(ros);
+    });
+
+    // EXAMEN FÍSICO
+    html += section("EXAMEN FÍSICO", () => {
+      const ef = s.examenFisico;
+      if (!ef || typeof ef !== "object" || Object.keys(ef).length === 0) return noDoc();
+      return Object.entries(ef).map(([sys, finding]) =>
+        `<div class="exam-row"><span class="exam-system">${esc(sys)}:</span><span class="exam-finding">${esc(String(finding))}</span></div>`
+      ).join("");
+    });
+
+    // SCREENINGS
+    html += section("SCREENINGS", () => {
+      const sc = s.screenings;
+      if (noData(sc)) return noDoc();
+      return `<ul>${sc.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+    });
+
+    // ASSESSMENT & PLAN
+    html += section("ASSESSMENT & PLAN", () => {
+      const ap = s.assessmentAndPlan;
+      if (!ap || ap === "No documentado") return noDoc();
+      return esc(ap);
+    });
+
+    // JUSTIFICACIÓN CÓDIGO DE VISITA
+    html += section("JUSTIFICACIÓN CÓDIGO DE VISITA", () => {
+      const j = s.justificacionCodigoVisita;
+      if (!j || j === "No documentado") return noDoc();
+      return esc(j);
+    });
+
+    // REFERIDOS A CASE MANAGEMENT
+    html += section("REFERIDOS A CASE MANAGEMENT", () => {
+      const ref = s.referidosCaseManagement;
+      if (noData(ref)) return noDoc();
+      return `<ul>${ref.map(r => `<li>${esc(r)}</li>`).join("")}</ul>`;
+    });
+
+    return html;
+  }
+
+  function section(label, contentFn) {
+    return `<div class="section">
+      <div class="section-title">${label}</div>
+      <div class="section-content">${contentFn()}</div>
+    </div>`;
+  }
+
+  function noDoc() {
+    return `<span class="no-data">No documentado</span>`;
+  }
+
+  // Plain-text version for clipboard
+  function buildPlainText(s) {
+    if (!s) return "";
+    const lines = [];
+
+    const add = (label, content) => {
+      lines.push(`${label}`);
+      lines.push(content);
+      lines.push("");
+    };
+
+    // Diagnósticos
+    const dx = s.diagnosticos;
+    if (!noData(dx)) {
+      lines.push("DIAGNÓSTICOS (ICD-10)");
+      dx.forEach(d => lines.push(`  ${d.description || "NE"} — ${d.icd10 || "NE"}`));
+    } else {
+      lines.push("DIAGNÓSTICOS (ICD-10)");
+      lines.push("  No documentado");
+    }
+    lines.push("");
+
+    add("MEDICAMENTOS", noData(s.medicamentos)
+      ? "  No documentado"
+      : s.medicamentos.map(m => `  • ${m}`).join("\n"));
+
+    add("REVISIÓN DE SISTEMAS (ROS)", `  ${s.revisionDeSistemas || "No documentado"}`);
+
+    const ef = s.examenFisico;
+    if (ef && typeof ef === "object" && Object.keys(ef).length > 0) {
+      lines.push("EXAMEN FÍSICO");
+      Object.entries(ef).forEach(([sys, f]) => lines.push(`  ${sys}: ${f}`));
+    } else {
+      lines.push("EXAMEN FÍSICO");
+      lines.push("  No documentado");
+    }
+    lines.push("");
+
+    add("SCREENINGS", noData(s.screenings)
+      ? "  No documentado"
+      : s.screenings.map(x => `  • ${x}`).join("\n"));
+
+    add("ASSESSMENT & PLAN", `  ${s.assessmentAndPlan || "No documentado"}`);
+    add("JUSTIFICACIÓN CÓDIGO DE VISITA", `  ${s.justificacionCodigoVisita || "No documentado"}`);
+
+    add("REFERIDOS A CASE MANAGEMENT", noData(s.referidosCaseManagement)
+      ? "  No documentado"
+      : s.referidosCaseManagement.map(r => `  • ${r}`).join("\n"));
+
+    return lines.join("\n").trim();
+  }
+</script>
+</body>
+</html>
