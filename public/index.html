@@ -373,13 +373,14 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
         <p>Structured sections will appear here<br>once you submit a note.</p>
       </div>
     </div>
-    <div class="output-actions" id="outputActions">
-      <button id="copyPlainBtn">
+    <div class="output-actions" id="outputFooter">
+      <button id="copyBtn">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
         </svg>
-        <span id="copyPlainLabel">Copy as Plain Text</span>
+        <span id="copyBtnLabel">Copy as Plain Text</span>
       </button>
+      <span id="outputChars" style="font-size:0.78rem;color:var(--muted);margin-left:auto;"></span>
     </div>
   </div>
 </main>
@@ -445,10 +446,11 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
   const clearBtn  = document.getElementById("clearBtn");
   const spinner   = document.getElementById("spinner");
   const btnText   = document.getElementById("btnText");
-  const output        = document.getElementById("output");
-  const outputActions = document.getElementById("outputActions");
-  const copyPlainBtn  = document.getElementById("copyPlainBtn");
-  const copyPlainLabel = document.getElementById("copyPlainLabel");
+  const output       = document.getElementById("output");
+  const outputFooter = document.getElementById("outputFooter");
+  const outputChars  = document.getElementById("outputChars");
+  const copyBtn      = document.getElementById("copyBtn");
+  const copyBtnLabel = document.getElementById("copyBtnLabel");
 
   const PLACEHOLDER_HTML = `<div class="placeholder">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
@@ -461,16 +463,16 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     noteInput.value = "";
     noteInput.focus();
     output.innerHTML = PLACEHOLDER_HTML;
-    outputActions.style.display = "none";
+    outputFooter.style.display = "none";
   });
 
-  copyPlainBtn.addEventListener("click", () => {
-    navigator.clipboard.writeText(window.__lastText || "").then(() => {
-      copyPlainBtn.classList.add("copied");
-      copyPlainLabel.textContent = "Copied!";
+  copyBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(output.textContent || "").then(() => {
+      copyBtn.classList.add("copied");
+      copyBtnLabel.textContent = "Copied!";
       setTimeout(() => {
-        copyPlainBtn.classList.remove("copied");
-        copyPlainLabel.textContent = "Copy as Plain Text";
+        copyBtn.classList.remove("copied");
+        copyBtnLabel.textContent = "Copy as Plain Text";
       }, 2000);
     });
   });
@@ -482,8 +484,8 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     submitBtn.disabled = true;
     spinner.style.display = "block";
     btnText.textContent = "Processing…";
-    output.innerHTML = "";
-    outputActions.style.display = "none";
+    output.textContent = "";
+    outputFooter.style.display = "none";
 
     try {
       const res = await fetch("/api/structure", {
@@ -496,18 +498,16 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        output.innerHTML = `<div class="error-msg">Error: ${esc(data.error || "Unknown error")}</div>`;
-        return;
+      if (data.error) {
+        output.textContent = "Error: " + data.error;
+      } else {
+        output.textContent = data.output;
+        copyBtn.style.display = "block";
+        outputFooter.style.display = "flex";
+        outputChars.textContent = data.output.length + " chars";
       }
-
-      const text = responseToText(data.structured);
-      window.__lastText = text;
-      output.innerHTML = `<pre class="pre-wrap">${esc(text)}</pre>`;
-      outputActions.style.display = "block";
     } catch (err) {
-      output.innerHTML = `<div class="error-msg">Network error: ${esc(String(err))}</div>`;
+      output.textContent = "Network error: " + String(err);
     } finally {
       submitBtn.disabled = false;
       spinner.style.display = "none";
@@ -515,76 +515,6 @@ Patient is a 54-year-old male presenting with chest pain for 2 days. PMH: hypert
     }
   });
 
-  function esc(str) {
-    return String(str)
-      .replace(/&/g,"&amp;")
-      .replace(/</g,"&lt;")
-      .replace(/>/g,"&gt;");
-  }
-
-  const ROS_SYSTEMS = ["General","HEENT","Cardiovascular","Pulmonary","Gastrointestinal","Genitourinary","Mental Health","Neurological","Musculoskeletal","Skin"];
-
-  function responseToText(s) {
-    if (!s) return "No documentado";
-    if (typeof s === "string") return s;
-
-    const lines = [];
-    const DIV = "─".repeat(48);
-
-    const now = new Date();
-    const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-    const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-
-    lines.push("NOTA CLÍNICA ESTRUCTURADA — Innovaon");
-    lines.push("Fecha: " + dateStr + "  " + timeStr);
-    lines.push(DIV);
-    lines.push("");
-
-    lines.push("MEDICAMENTOS:");
-    const meds = s.medicamentos;
-    if (meds && Array.isArray(meds) && meds.length > 0) {
-      meds.forEach(function(m) { lines.push("  • " + m); });
-    } else if (meds && typeof meds === "string" && meds !== "No documentado") {
-      lines.push("  " + meds);
-    } else {
-      lines.push("  No documentado");
-    }
-    lines.push("");
-
-    lines.push("ROS DETAILS:");
-    const ros = s.rosDetails;
-    if (ros && typeof ros === "object") {
-      ROS_SYSTEMS.forEach(function(sys) {
-        lines.push("  " + sys + ": " + (ros[sys] || "No documentado"));
-      });
-    } else {
-      lines.push("  " + (ros || "No documentado"));
-    }
-    lines.push("");
-
-    lines.push("ASSESSMENT & PLAN:");
-    const ap = s.assessmentAndPlan;
-    if (ap && ap !== "No documentado") {
-      const apLines = String(ap).split("\n");
-      apLines.forEach(function(l) { lines.push("  " + l); });
-    } else {
-      lines.push("  No documentado");
-    }
-    lines.push("");
-
-    lines.push("JUSTIFICACIÓN CÓDIGO DE VISITA:");
-    lines.push("  " + (s.justificacionCodigoVisita || "No documentado"));
-    lines.push("");
-
-    lines.push("REFERIDOS A CASE MANAGEMENT:");
-    lines.push("  " + (s.referidosCaseManagement || "No documentado"));
-    lines.push("");
-
-    lines.push("ADDITIONAL NOTES:");
-    lines.push("  " + (s.additionalNotes || "No documentado"));
-
-    return lines.join("\n");
-  }
 </script>
 </body>
 </html>
